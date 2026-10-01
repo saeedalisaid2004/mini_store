@@ -1,0 +1,8 @@
+#! 0-mini-store-namespace.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: Namespace
+metadata:
+    name: mini-store
+    labels:
+        com.docker.compose.project: mini_store

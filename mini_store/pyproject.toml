@@ -1,0 +1,15 @@
+[tool.ruff]
+exclude = [
+    "**/migrations/*",
+    ".git",
+    ".venv",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+
+ignore = [
+    "EXE001",
+    "EXE002", 
+    "RUF012", 
+]
