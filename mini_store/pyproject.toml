@@ -13,3 +13,15 @@ ignore = [
     "EXE002", 
     "RUF012", 
 ]
+[tool.mypy]
+plugins = [
+    "mypy_django_plugin.main"
+]
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "mini_store.settings"
+
+[[tool.mypy.overrides]]
+module = "celery.*"
+ignore_missing_imports = true
