@@ -1,49 +1,132 @@
- Mini Store API
+# Mini Store
 
-A production-ready e-commerce RESTful API built with **Django 6**, **Django REST Framework**, **PostgreSQL**, **Celery**, **Redis**, and **Docker Compose**. 
+A REST API for a small online store built with Django REST Framework.
 
-The architecture strictly adheres to enterprise-grade standards, enforcing **clean architecture principles**, **concurrency control**, **transactional safety**, **idempotency**, and strict **type-checking & code formatting**.
+The project handles products, categories, shopping carts, orders, authentication, and background tasks.
 
----
+## Tech Stack
 
- Features
+* Python
+* Django 6
+* Django REST Framework
+* PostgreSQL
+* Redis
+* Celery
+* JWT Authentication
+* Docker & Docker Compose
+* drf-spectacular for API documentation
 
-- Catalog Management:
-  - Category hierarchy and product listing with multi-language support (`name_ar` / `name_en`).
-  - Search, pagination, and multi-field filtering (by price range, active status, category).
-- Cart Engine:
-  - Session/User cart management with dynamic stock validation.
-- Transactional Checkout & Orders:
-  - Atomic database transactions with row-level locking (`select_for_update`) to eliminate race conditions and overselling.
-  - State machine workflow for order status updates (`pending`, `paid`, `cancelled`).
-  - Idempotent request protection via `Idempotency-Key` headers.
-- Asynchronous Processing:
-  - Celery background task processing hooked into Django's `transaction.on_commit()` for post-checkout order emails.
+## Project Structure
 
----
+The project uses a simple Service / Selector pattern:
 
- Tech Stack & Tooling
+* `services.py` → handles business logic and database changes.
+* `selectors.py` → handles read-only database queries.
+* `apis.py` → contains the API endpoints.
 
-- Backend Framework: Django 6, Django REST Framework (DRF)
-- Database**: PostgreSQL
-- Background Tasks & Caching**: Celery, Redis
-- Containerization: Docker, Docker Compose
-- Quality Assurance:
-  - Linter & Formatter: Ruff
-  - Type Checking: Mypy with `django-stubs`
-  - Testing: Pytest
+This keeps the API views simple and makes the business logic easier to test and maintain.
 
----
+## Main Features
 
- Quick Start & Setup
+### Authentication
 
-### Prerequisites
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
-- [Git](https://git-scm.com/) installed.
+The API uses JWT authentication.
 
-### Installation Steps
+Users can log in and receive access and refresh tokens.
 
-1. Clone the repository:
-   ```bash
-   git clone [https://github.com/saeedalisaid2004/mini_store.git](https://github.com/saeedalisaid2004/mini_store.git)
-   cd mini_store
+### Products
+
+Products include information such as:
+
+* Name
+* Category
+* Price
+* Stock
+* Active / inactive status
+
+The product API also supports filtering, searching, ordering, and pagination.
+
+### Cart
+
+Users can:
+
+* Add products to their cart
+* Update quantities
+* View their cart
+* See the total price
+
+Inactive products cannot be added to the cart, and users cannot add more items than the available stock.
+
+### Orders
+
+Users can create orders from their cart.
+
+The checkout process uses database transactions to make sure stock and order data stay consistent.
+
+The project also uses database locking when updating stock to handle multiple requests safely.
+
+### Idempotency
+
+The order API supports an `Idempotency-Key` header.
+
+The key is associated with the authenticated user, so sending the same request again does not create another order for the same user.
+
+### Background Tasks
+
+Celery and Redis are used for tasks that can run in the background instead of blocking the API request.
+
+## API Documentation
+
+The API documentation is generated using OpenAPI and `drf-spectacular`.
+
+After running the project, the Swagger documentation can be accessed from the API documentation endpoint.
+
+## Running the Project
+
+### Requirements
+
+* Docker Desktop
+* Git
+
+### Environment Variables
+
+Create a `.env` file in the project root based on `.env.example`.
+
+Example:
+
+```env
+SECRET_KEY=your-secret-key
+DEBUG=1
+ALLOWED_HOSTS=*
+
+DATABASE_URL=postgres://postgres:postgres@db:5432/mini_store
+REDIS_URL=redis://redis:6379/0
+```
+
+### Start the Project
+
+Run:
+
+```bash
+docker compose up --build
+```
+
+After the containers start, run the Django migrations:
+
+```bash
+docker compose exec web python manage.py migrate
+```
+
+The API can then be accessed through the configured local port.
+
+## Development
+
+The project uses:
+
+* Ruff for linting and formatting
+* Mypy for type checking
+* Django REST Framework for API development
+
+## Project Goal
+
+The main goal of this project was to practice building a Django REST API with a structure that can be extended later as the application grows.
