@@ -4,7 +4,12 @@ from cart.models import Cart, CartItem
 from catalog.models import Product
 
 
-def add_or_update_cart_item(*, user, product_id: int, quantity: int) -> CartItem:
+def get_or_create_user_cart(*, user):
+    cart, _ = Cart.objects.get_or_create(user=user)
+    return cart
+
+
+def add_or_update_cart_item(*, user, product_id: int, quantity: int):
     if quantity <= 0:
         raise ValidationError(
             {"code": "invalid_quantity", "message": "Quantity must be greater than 0."}
@@ -16,7 +21,7 @@ def add_or_update_cart_item(*, user, product_id: int, quantity: int) -> CartItem
             {"code": "product_not_available", "message": "Product is not available."}
         )
 
-    if quantity > product.stock:
+    if quantity:
         raise ValidationError(
             {"code": "exceeds_stock", "message": "Quantity exceeds available stock."}
         )
@@ -32,7 +37,7 @@ def add_or_update_cart_item(*, user, product_id: int, quantity: int) -> CartItem
     return cart_item
 
 
-def remove_cart_item(*, user, item_id: int) -> None:
+def remove_cart_item(*, user, item_id: int):
     deleted_count, _ = CartItem.objects.filter(id=item_id, cart__user=user).delete()
     if deleted_count == 0:
         raise NotFound({"code": "not_found", "message": "Cart item not found."})

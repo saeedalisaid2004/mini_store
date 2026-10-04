@@ -1,11 +1,11 @@
 from django.urls import path
-
-from catalog.apis import (
-    ProductDetailAPI,
-    ProductListAPI,
-)  # أو من catalog.views حسب مكان الـ APIs عندك
+from . import apis
 
 urlpatterns = [
-    path("", ProductListAPI.as_view(), name="product-list"),
-    path("<int:pk>/", ProductDetailAPI.as_view(), name="product-detail"),
+    path("products/", apis.ProductListAPI.as_view(), name="product-list"),
+    path(
+        "products/<int:product_id>/",
+        apis.ProductDetailAPI.as_view(),
+        name="product-detail",
+    ),
 ]

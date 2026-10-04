@@ -9,21 +9,35 @@ from orders.tasks import send_order_confirmation_email
 
 
 def checkout_cart(user, cart, idempotency_key=None):
+    # 1. Scope Idempotency check to the CURRENT USER first
     if idempotency_key:
-        existing_order = Order.objects.filter(idempotency_key=idempotency_key).first()
+        existing_order = Order.objects.filter(
+            user=user, idempotency_key=idempotency_key
+        ).first()
         if existing_order:
             return existing_order
 
-    cart_items = cart.items.all()
-    if not cart_items:
-        raise ValidationError("السلة فارغة")
-
+    # 2. Everything inside a single atomic transaction
     with transaction.atomic():
+        # Lock cart to prevent concurrent checkouts on the same cart
+        cart_items = (
+            cart.items.select_related("product")
+            .select_for_update()
+            .order_by("product_id")
+        )
+
+        if not cart_items.exists():
+            raise ValidationError("السلة فارغة")
+
         total_amount = Decimal("0.00")
         order_items_list = []
 
+        # Lock products in deterministic order (by ID) to avoid deadlocks
         for item in cart_items:
-            product = Product.objects.select_for_update().get(id=item.product.id)
+            try:
+                product = Product.objects.select_for_update().get(id=item.product.id)
+            except Product.DoesNotExist:
+                raise ValidationError(f"المنتج {item.product.name_ar} غير موجود")
 
             if not product.is_active:
                 raise ValidationError(f"المنتج {product.name_ar} غير متاح")
@@ -45,6 +59,7 @@ def checkout_cart(user, cart, idempotency_key=None):
                 }
             )
 
+        # Create Order with user relation & idempotency key
         order = Order.objects.create(
             user=user,
             total_amount=total_amount,
@@ -62,8 +77,10 @@ def checkout_cart(user, cart, idempotency_key=None):
                 quantity=item_data["quantity"],
             )
 
+        # Clear cart items safely
         cart.items.all().delete()
 
+        # Queue confirmation email on successful commit
         transaction.on_commit(lambda: send_order_confirmation_email.delay(order.id))
 
         return order
@@ -78,21 +95,30 @@ def change_order_status(order, new_status):
         "cancelled": [],
     }
 
-    current_status = order.status
-
-    if new_status not in allowed_transitions.get(current_status, []):
-        raise ValidationError(
-            f"غير مسموح بالتغيير من {current_status} إلى {new_status}"
-        )
-
     with transaction.atomic():
+        # Lock the order row first to prevent race conditions on status updates
+        locked_order = Order.objects.select_for_update().get(id=order.id)
+        current_status = locked_order.status
+
+        if new_status not in allowed_transitions.get(current_status, []):
+            raise ValidationError(
+                f"غير مسموح بالتغيير من {current_status} إلى {new_status}"
+            )
+
+        # Safely restore stock if cancelling
         if new_status == "cancelled":
-            for item in order.items.all():
-                product = Product.objects.select_for_update().get(id=item.product_id)
-                product.stock = product.stock + item.quantity
-                product.save()
+            for item in locked_order.items.all():
+                try:
+                    product = Product.objects.select_for_update().get(
+                        id=item.product_id
+                    )
+                    product.stock = product.stock + item.quantity
+                    product.save()
+                except Product.DoesNotExist:
+                    # Ignore stock restoration if product was deleted
+                    pass
 
-        order.status = new_status
-        order.save()
+        locked_order.status = new_status
+        locked_order.save()
 
-    return order
+        return locked_order

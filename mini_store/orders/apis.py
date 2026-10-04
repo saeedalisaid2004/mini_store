@@ -16,21 +16,21 @@ class CheckoutAPI(APIView):
 
     def post(self, request):
         cart = get_user_cart(user=request.user)
-        if not cart or not cart.items.exists():
-            return Response(
-                {"error": {"code": "CART_EMPTY", "message": "السلة فارغة"}},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
-        idempotency_key = request.headers.get("Idempotency-Key")
+        # Read header safely (supports both Standard and X- prefixed)
+        idempotency_key = request.headers.get(
+            "X-Idempotency-Key"
+        ) or request.headers.get("Idempotency-Key")
 
         try:
+            # Delegate cart validation & idempotency directly to the service layer
             order = checkout_cart(
                 user=request.user, cart=cart, idempotency_key=idempotency_key
             )
         except ValidationError as e:
+            message = e.message if hasattr(e, "message") else str(e)
             return Response(
-                {"error": {"code": "CHECKOUT_ERROR", "message": str(e)}},
+                {"error": {"code": "CHECKOUT_ERROR", "message": message}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -84,8 +84,9 @@ class ChangeOrderStatusAPI(APIView):
         try:
             updated_order = change_order_status(order=order, new_status=new_status)
         except ValidationError as e:
+            message = e.message if hasattr(e, "message") else str(e)
             return Response(
-                {"error": {"code": "INVALID_TRANSITION", "message": str(e)}},
+                {"error": {"code": "INVALID_TRANSITION", "message": message}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
